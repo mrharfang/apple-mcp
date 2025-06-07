@@ -1,0 +1,26 @@
+{
+  "mcpServers": {
+    "Context7": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@upstash/context7-mcp@latest"]
+    },
+    "dkon-memory": {
+      "type": "stdio",
+      "command": "/Users/rickbarraza/dev/mcp/claude-memory-mcp/run_server.sh"
+    },
+    "project-memory": {
+      "type": "stdio",
+      "command": "uv",
+      "args": [
+        "--directory",
+        "/Users/rickbarraza/dev/mcp/mcp-server-repo-memory",
+        "run",
+        "mcp-server-repo-memory"
+      ],
+      "env": {
+        "PYTHONPATH": "/Users/rickbarraza/dev/mcp/mcp-server-repo-memory/src"
+      }
+    }
+  }
+}

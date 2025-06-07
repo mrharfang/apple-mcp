@@ -8,9 +8,6 @@ import {
 import { runAppleScript } from "run-applescript";
 import tools from "./tools";
 
-interface WebSearchArgs {
-  query: string;
-}
 
 // Safe mode implementation - lazy loading of modules
 let useEagerLoading = true;
@@ -21,28 +18,22 @@ console.error("Starting apple-mcp server...");
 
 // Placeholders for modules - will either be loaded eagerly or lazily
 let contacts: typeof import('./utils/contacts').default | null = null;
-let notes: typeof import('./utils/notes').default | null = null;
 let message: typeof import('./utils/message').default | null = null;
 let mail: typeof import('./utils/mail').default | null = null;
-let reminders: typeof import('./utils/reminders').default | null = null;
-let webSearch: typeof import('./utils/webSearch').default | null = null;
 let calendar: typeof import('./utils/calendar').default | null = null;
 let maps: typeof import('./utils/maps').default | null = null;
 
 // Type map for module names to their types
 type ModuleMap = {
   contacts: typeof import('./utils/contacts').default;
-  notes: typeof import('./utils/notes').default;
   message: typeof import('./utils/message').default;
   mail: typeof import('./utils/mail').default;
-  reminders: typeof import('./utils/reminders').default;
-  webSearch: typeof import('./utils/webSearch').default;
   calendar: typeof import('./utils/calendar').default;
   maps: typeof import('./utils/maps').default;
 };
 
 // Helper function for lazy module loading
-async function loadModule<T extends 'contacts' | 'notes' | 'message' | 'mail' | 'reminders' | 'webSearch' | 'calendar' | 'maps'>(moduleName: T): Promise<ModuleMap[T]> {
+async function loadModule<T extends 'contacts' | 'message' | 'mail' | 'calendar' | 'maps'>(moduleName: T): Promise<ModuleMap[T]> {
   if (safeModeFallback) {
     console.error(`Loading ${moduleName} module on demand (safe mode)...`);
   }
@@ -52,21 +43,12 @@ async function loadModule<T extends 'contacts' | 'notes' | 'message' | 'mail' | 
       case 'contacts':
         if (!contacts) contacts = (await import('./utils/contacts')).default;
         return contacts as ModuleMap[T];
-      case 'notes':
-        if (!notes) notes = (await import('./utils/notes')).default;
-        return notes as ModuleMap[T];
       case 'message':
         if (!message) message = (await import('./utils/message')).default;
         return message as ModuleMap[T];
       case 'mail':
         if (!mail) mail = (await import('./utils/mail')).default;
         return mail as ModuleMap[T];
-      case 'reminders':
-        if (!reminders) reminders = (await import('./utils/reminders')).default;
-        return reminders as ModuleMap[T];
-      case 'webSearch':
-        if (!webSearch) webSearch = (await import('./utils/webSearch')).default;
-        return webSearch as ModuleMap[T];
       case 'calendar':
         if (!calendar) calendar = (await import('./utils/calendar')).default;
         return calendar as ModuleMap[T];
@@ -90,12 +72,10 @@ loadingTimeout = setTimeout(() => {
   
   // Clear the references to any modules that might be in a bad state
   contacts = null;
-  notes = null;
   message = null;
   mail = null;
-  reminders = null;
-  webSearch = null;
   calendar = null;
+  maps = null;
   
   // Proceed with server setup
   initServer();
@@ -110,20 +90,11 @@ async function attemptEagerLoading() {
     contacts = (await import('./utils/contacts')).default;
     console.error("- Contacts module loaded successfully");
     
-    notes = (await import('./utils/notes')).default;
-    console.error("- Notes module loaded successfully");
-    
     message = (await import('./utils/message')).default;
     console.error("- Message module loaded successfully");
     
     mail = (await import('./utils/mail')).default;
     console.error("- Mail module loaded successfully");
-    
-    reminders = (await import('./utils/reminders')).default;
-    console.error("- Reminders module loaded successfully");
-
-    webSearch = (await import('./utils/webSearch')).default;
-    console.error("- WebSearch module loaded successfully");
     
     calendar = (await import('./utils/calendar')).default;
     console.error("- Calendar module loaded successfully");
@@ -155,11 +126,8 @@ async function attemptEagerLoading() {
     
     // Clear the references to any modules that might be in a bad state
     contacts = null;
-    notes = null;
     message = null;
     mail = null;
-    reminders = null;
-    webSearch = null;
     calendar = null;
     maps = null;
     
@@ -261,79 +229,6 @@ function initServer() {
           }
         }
         
-        case "notes": {
-          if (!isNotesArgs(args)) {
-            throw new Error("Invalid arguments for notes tool");
-          }
-
-          try {
-            const notesModule = await loadModule('notes');
-            const { operation } = args;
-            
-            switch (operation) {
-              case "search": {
-                if (!args.searchText) {
-                  throw new Error("Search text is required for search operation");
-                }
-                
-                const foundNotes = await notesModule.findNote(args.searchText);
-                return {
-                  content: [{
-                    type: "text",
-                    text: foundNotes.length ?
-                      foundNotes.map(note => `${note.name}:\n${note.content}`).join("\n\n") :
-                      `No notes found for "${args.searchText}"`
-                  }],
-                  isError: false
-                };
-              }
-              
-              case "list": {
-                const allNotes = await notesModule.getAllNotes();
-                return {
-                  content: [{
-                    type: "text",
-                    text: allNotes.length ?
-                      allNotes.map((note) => `${note.name}:\n${note.content}`)
-                      .join("\n\n") : 
-                      "No notes exist."
-                  }],
-                  isError: false
-                };
-              }
-              
-              case "create": {
-                if (!args.title || !args.body) {
-                  throw new Error("Title and body are required for create operation");
-                }
-                
-                const result = await notesModule.createNote(args.title, args.body, args.folderName);
-                
-                return {
-                  content: [{
-                    type: "text",
-                    text: result.success ?
-                      `Created note "${args.title}" in folder "${result.folderName}"${result.usedDefaultFolder ? ' (created new folder)' : ''}.` :
-                      `Failed to create note: ${result.message}`
-                  }],
-                  isError: !result.success
-                };
-              }
-              
-              default:
-                throw new Error(`Unknown operation: ${operation}`);
-            }
-          } catch (error) {
-            return {
-              content: [{
-                type: "text",
-                text: `Error accessing notes: ${error instanceof Error ? error.message : String(error)}`
-              }],
-              isError: true
-            };
-          }
-        }
-
         case "messages": {
           if (!isMessagesArgs(args)) {
             throw new Error("Invalid arguments for messages tool");
@@ -670,126 +565,6 @@ end tell`;
           }
         }
 
-        case "reminders": {
-          if (!isRemindersArgs(args)) {
-            throw new Error("Invalid arguments for reminders tool");
-          }
-
-          try {
-            const remindersModule = await loadModule('reminders');
-            
-            const { operation } = args;
-
-            if (operation === "list") {
-              // List all reminders
-              const lists = await remindersModule.getAllLists();
-              const allReminders = await remindersModule.getAllReminders();
-              return {
-                content: [{
-                  type: "text",
-                  text: `Found ${lists.length} lists and ${allReminders.length} reminders.`
-                }],
-                lists,
-                reminders: allReminders,
-                isError: false
-              };
-            } 
-            else if (operation === "search") {
-              // Search for reminders
-              const { searchText } = args;
-              const results = await remindersModule.searchReminders(searchText!);
-              return {
-                content: [{
-                  type: "text",
-                  text: results.length > 0 
-                    ? `Found ${results.length} reminders matching "${searchText}".` 
-                    : `No reminders found matching "${searchText}".`
-                }],
-                reminders: results,
-                isError: false
-              };
-            } 
-            else if (operation === "open") {
-              // Open a reminder
-              const { searchText } = args;
-              const result = await remindersModule.openReminder(searchText!);
-              return {
-                content: [{
-                  type: "text",
-                  text: result.success 
-                    ? `Opened Reminders app. Found reminder: ${result.reminder?.name}` 
-                    : result.message
-                }],
-                ...result,
-                isError: !result.success
-              };
-            } 
-            else if (operation === "create") {
-              // Create a reminder
-              const { name, listName, notes, dueDate } = args;
-              const result = await remindersModule.createReminder(name!, listName, notes, dueDate);
-              return {
-                content: [{
-                  type: "text",
-                  text: `Created reminder "${result.name}" ${listName ? `in list "${listName}"` : ''}.`
-                }],
-                success: true,
-                reminder: result,
-                isError: false
-              };
-            }
-            else if (operation === "listById") {
-              // Get reminders from a specific list by ID
-              const { listId, props } = args;
-              const results = await remindersModule.getRemindersFromListById(listId!, props);
-              return {
-                content: [{
-                  type: "text",
-                  text: results.length > 0 
-                    ? `Found ${results.length} reminders in list with ID "${listId}".` 
-                    : `No reminders found in list with ID "${listId}".`
-                }],
-                reminders: results,
-                isError: false
-              };
-            }
-
-            return {
-              content: [{
-                type: "text",
-                text: "Unknown operation"
-              }],
-              isError: true
-            };
-          } catch (error) {
-            console.error("Error in reminders tool:", error);
-            return {
-              content: [{
-                type: "text",
-                text: `Error in reminders tool: ${error}`
-              }],
-              isError: true
-            };
-          }
-        }
-
-        case "webSearch": {
-          if (!isWebSearchArgs(args)) {
-            throw new Error("Invalid arguments for web search tool");
-          }
-
-          const webSearchModule = await loadModule('webSearch');
-          const result = await webSearchModule.webSearch(args.query);
-          return {
-            content: [{
-              type: "text",
-              text: result.results.length > 0 ? 
-                `Found ${result.results.length} results for "${args.query}". ${result.results.map(r => `[${r.displayUrl}] ${r.title} - ${r.snippet} \n content: ${r.content}`).join("\n")}` : 
-                `No results found for "${args.query}".`
-            }],
-            isError: false
-          };
-        }
 
         case "calendar": {
           if (!isCalendarArgs(args)) {
@@ -1091,51 +866,6 @@ function isContactsArgs(args: unknown): args is { name?: string } {
   );
 }
 
-function isNotesArgs(args: unknown): args is { 
-  operation: "search" | "list" | "create";
-  searchText?: string;
-  title?: string;
-  body?: string;
-  folderName?: string;
-} {
-  if (typeof args !== "object" || args === null) {
-    return false;
-  }
-  
-  const { operation } = args as { operation?: unknown };
-  if (typeof operation !== "string") {
-    return false;
-  }
-  
-  if (!["search", "list", "create"].includes(operation)) {
-    return false;
-  }
-  
-  // Validate fields based on operation
-  if (operation === "search") {
-    const { searchText } = args as { searchText?: unknown };
-    if (typeof searchText !== "string" || searchText === "") {
-      return false;
-    }
-  }
-  
-  if (operation === "create") {
-    const { title, body } = args as { title?: unknown, body?: unknown };
-    if (typeof title !== "string" || title === "" || 
-        typeof body !== "string") {
-      return false;
-    }
-    
-    // Check folderName if provided
-    const { folderName } = args as { folderName?: unknown };
-    if (folderName !== undefined && (typeof folderName !== "string" || folderName === "")) {
-      return false;
-    }
-  }
-  
-  return true;
-}
-
 function isMessagesArgs(args: unknown): args is {
   operation: "send" | "read" | "schedule" | "unread";
   phoneNumber?: string;
@@ -1222,57 +952,6 @@ function isMailArgs(args: unknown): args is {
   return true;
 }
 
-function isRemindersArgs(args: unknown): args is {
-  operation: "list" | "search" | "open" | "create" | "listById";
-  searchText?: string;
-  name?: string;
-  listName?: string;
-  listId?: string;
-  props?: string[];
-  notes?: string;
-  dueDate?: string;
-} {
-  if (typeof args !== "object" || args === null) {
-    return false;
-  }
-
-  const { operation } = args as any;
-  if (typeof operation !== "string") {
-    return false;
-  }
-
-  if (!["list", "search", "open", "create", "listById"].includes(operation)) {
-    return false;
-  }
-
-  // For search and open operations, searchText is required
-  if ((operation === "search" || operation === "open") && 
-      (typeof (args as any).searchText !== "string" || (args as any).searchText === "")) {
-    return false;
-  }
-
-  // For create operation, name is required
-  if (operation === "create" && 
-      (typeof (args as any).name !== "string" || (args as any).name === "")) {
-    return false;
-  }
-  
-  // For listById operation, listId is required
-  if (operation === "listById" && 
-      (typeof (args as any).listId !== "string" || (args as any).listId === "")) {
-    return false;
-  }
-
-  return true;
-}
-
-function isWebSearchArgs(args: unknown): args is WebSearchArgs {
-  return (
-    typeof args === "object" &&
-    args !== null &&
-    typeof (args as WebSearchArgs).query === "string"
-  );
-}
 
 function isCalendarArgs(args: unknown): args is {
   operation: "search" | "open" | "list" | "create";
